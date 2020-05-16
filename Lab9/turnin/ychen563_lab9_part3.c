@@ -1,15 +1,14 @@
-/*	Author: lab
- *  Partner(s) Name: 
- *	Lab Section:
- *	Assignment: Lab #  Exercise #
- *	Exercise Description: [optional - include for your own benefit]
- *
+/*	Author: ychen563
+ *	Lab Section: 024
+ *	Assignment: Lab #9  Exercise #3
+
  *	I acknowledge all content contained herein, excluding template or example
  *	code, is my own original work.
  */
 #include <avr/io.h>
 #ifdef _SIMULATE_
 #include "simAVRHeader.h"
+#include "timer.h"
 #endif
 
 void set_PWM(double frequency) {
@@ -40,54 +39,53 @@ void PWM_off(){
     TCCR3B = 0x00;
 }
 
-enum states{Start, Init, Note1, Note2, Note3} state;
+enum states{Start, Wait, End, Sound} state;
 
 unsigned char input;
-unsigned short frequency;
+unsigned short note[17] = {0, 523.25, 493.88, 523.25, 523.25, 392.00, 392.00, 349.23, 349.23, 523.25, 493.88, 523.25, 523.25, 392.00, 392.00, 349.23, 349.23};
+unsigned char i;
+unsigned char j;
+
 
 void Tick(){
-    input = ~PINA & 0x07;
+    input = ~PINA & 0x04;
     switch(state){//Transition
         case Start:
-            state = Init;
-            frequency = 0;
+            state = Wait;
+            j = 0;
             break;
-        case Init:
-            if (input == 0x01){state = Note1;}
-            else if (input == 0x02) {state = Note2;}
-            else if (input == 0x04) {state = Note3;}
-            else {state = Init;}
+        case Wait:
+            i = 0;
+            j = 0;
+            if (input == 0x04){state = Sound;j = 1;}
+            else {state = Wait;}
             break;
-        case Note1:
-            if (input == 0x01){state = Note1;}
-            else{state = Init;}
+        case End:
+            if (input == 0x04){state = End;}
+            else {state = Wait;}
             break;
-        case Note2:
-            if (input == 0x02){state = Note2;}
-            else{state = Init;}
+        case Sound:
+            if (i < 15){j++;i++;}
+            else{
+                j = 0;
+                state = End;
+            }
             break;
-        case Note3:
-            if (input == 0x04){state = Note3;}
-            else{state = Init;}
+        default:
+            state = Wait;
             break;
     }//Transition
     switch(state){//State Action
-       case Start:
+        case Start:
            break;
-       case Init:
-           frequency = 0;
+        case Wait:
            break;
-       case Note1:
-           frequency = 261.63;
+        case Sound:
            break;
-       case Note2:
-           frequency = 293.66;
-           break;
-       case Note3:
-           frequency = 329.63;
+        default:
            break;
     }//State Action
-    set_PWM(frequency);     
+    set_PWM(note[j]);     
 }
 
 int main(void) {
@@ -95,11 +93,16 @@ int main(void) {
     DDRA = 0x00; PORTA = 0xFF;
     DDRB = 0xFF; PORTB = 0x00;
 
+    TimerSet(313);
+    TimerOn();
+
     state = Start;
     PWM_on();
     /* Insert your solution below */
     while (1) {
-        Tick();
+        while (!TimerFlag){}  // Wait for Tick's period
+      	TimerFlag = 0;        // Lower flag
+    	Tick();
     }
     return 1;
 }
